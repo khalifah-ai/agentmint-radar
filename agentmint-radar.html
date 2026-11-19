@@ -1,0 +1,1078 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>AgentMint Radar</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+    <style>
+      button, [role="button"], select, summary, input:not([type="checkbox"], [type="radio"]) { min-height: 2rem; }
+
+      :root {
+        --bg: #f6f5f1;
+        --bg-raise: #ffffff;
+        --bg-sunken: #eceae3;
+        --ink: #17150f;
+        --ink-2: #4c483c;
+        --ink-3: #7d7867;
+        --line: #ddd8ca;
+        --accent: #b8860b;
+        --accent-strong: #96690a;
+        --accent-soft: #f7ead0;
+        --accent-ink: #ffffff;
+        --ok: #1c7a3d;
+        --ok-soft: #e2f2e6;
+        --warn: #9a6206;
+        --warn-soft: #faecd2;
+        --bad: #b3261e;
+        --bad-soft: #fbe7e4;
+        --ended: #6d6759;
+        --ended-soft: #e9e6dc;
+        --soldout: #a02c22;
+        --soldout-soft: #f9e3df;
+        --shadow: 0 1px 2px rgba(23,21,15,.05), 0 8px 24px rgba(23,21,15,.06);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #12100c;
+          --bg-raise: #1c1a15;
+          --bg-sunken: #0b0a08;
+          --ink: #f2efe6;
+          --ink-2: #c9c3b2;
+          --ink-3: #938c78;
+          --line: #333026;
+          --accent: #f0b90b;
+          --accent-strong: #f5c542;
+          --accent-soft: #2e2610;
+          --accent-ink: #17150f;
+          --ok: #4cc374;
+          --ok-soft: #14301d;
+          --warn: #e8a93d;
+          --warn-soft: #33270e;
+          --bad: #f0837c;
+          --bad-soft: #3a1a17;
+          --ended: #a39b87;
+          --ended-soft: #26231c;
+          --soldout: #f0837c;
+          --soldout-soft: #3a1a17;
+          --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+        }
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+      a { color: var(--accent-strong); }
+      a:hover { text-decoration-thickness: 2px; }
+
+      .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px 64px; }
+
+      /* ---------- Header ---------- */
+      header.top {
+        border-bottom: 1px solid var(--line);
+        background: var(--bg-raise);
+      }
+      .top-in {
+        max-width: 1080px; margin: 0 auto; padding: 28px 20px 24px;
+        display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; justify-content: space-between;
+      }
+      .brand h1 {
+        margin: 0; font-size: clamp(1.7rem, 4.5vw, 2.4rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1;
+      }
+      .brand h1 .radar-dot { color: var(--accent); }
+      .brand p { margin: 8px 0 0; color: var(--ink-2); max-width: 46ch; font-size: 0.98rem; }
+      .brand .chain-tag {
+        display: inline-block; margin-top: 10px; font-size: 0.78rem; font-weight: 600;
+        letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2);
+        border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; background: var(--bg);
+      }
+
+      /* ---------- Buttons ---------- */
+      .btn {
+        appearance: none; border: 1px solid transparent; border-radius: 10px;
+        font: inherit; font-weight: 600; cursor: pointer; padding: 9px 18px;
+        display: inline-flex; align-items: center; gap: 8px; justify-content: center;
+        transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+        text-decoration: none;
+      }
+      .btn-accent { background: var(--accent); color: var(--accent-ink); }
+      .btn-accent:hover:not(:disabled) { background: var(--accent-strong); color: var(--accent-ink); }
+      @media (prefers-color-scheme: dark) { .btn-accent:hover:not(:disabled) { color: #17150f; } }
+      .btn-ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+      .btn-ghost:hover:not(:disabled) { border-color: var(--ink-3); }
+      .btn-sm { padding: 6px 13px; font-size: 0.9rem; border-radius: 8px; }
+      .btn:disabled { opacity: .45; cursor: not-allowed; }
+      .btn-block { width: 100%; padding: 13px 18px; font-size: 1.02rem; border-radius: 12px; }
+
+      /* ---------- Panels ---------- */
+      .panel {
+        background: var(--bg-raise); border: 1px solid var(--line); border-radius: 14px;
+        box-shadow: var(--shadow); padding: 20px;
+      }
+      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+      @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+
+      .panel h2 { margin: 0 0 4px; font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+      .panel .sub { color: var(--ink-2); font-size: 0.92rem; margin: 0 0 14px; }
+
+      .kv { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px dashed var(--line); font-size: 0.94rem; }
+      .kv:first-of-type { border-top: none; }
+      .kv .k { color: var(--ink-3); }
+      .kv .v { font-weight: 600; text-align: right; word-break: break-all; }
+
+      .pill {
+        display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600;
+        border-radius: 999px; padding: 3px 11px;
+      }
+      .pill-ok { background: var(--ok-soft); color: var(--ok); }
+      .pill-warn { background: var(--warn-soft); color: var(--warn); }
+      .pill-bad { background: var(--bad-soft); color: var(--bad); }
+      .pill-mut { background: var(--ended-soft); color: var(--ended); }
+
+      .notice {
+        border-radius: 10px; padding: 12px 14px; font-size: 0.92rem; margin-top: 14px; display: none;
+      }
+      .notice.show { display: block; }
+      .notice-warn { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn); }
+      .notice-bad { background: var(--bad-soft); color: var(--bad); border: 1px solid var(--bad); }
+      .notice-ok { background: var(--ok-soft); color: var(--ok); border: 1px solid var(--ok); }
+      .notice a { color: inherit; font-weight: 700; }
+
+      .tx-status { font-size: 0.9rem; margin-top: 12px; min-height: 1.3em; }
+      .tx-status.pending { color: var(--warn); }
+      .tx-status.success { color: var(--ok); }
+      .tx-status.error { color: var(--bad); }
+      .tx-status a { font-weight: 600; }
+
+      .hint { font-size: 0.86rem; color: var(--ink-3); margin-top: 10px; }
+
+      /* ---------- Stats strip ---------- */
+      .stats {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+        background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+        margin-top: 20px; box-shadow: var(--shadow);
+      }
+      @media (max-width: 720px) { .stats { grid-template-columns: 1fr 1fr; } }
+      .stat { background: var(--bg-raise); padding: 16px 18px; }
+      .stat .num { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+      .stat .lbl { font-size: 0.8rem; color: var(--ink-3); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-top: 3px; }
+
+      /* ---------- Section heads ---------- */
+      .sec-head { margin: 40px 0 6px; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+      .sec-head h2 { margin: 0; font-size: 1.45rem; font-weight: 800; letter-spacing: -0.02em; }
+      .sec-sub { color: var(--ink-2); margin: 0 0 18px; max-width: 62ch; }
+
+      /* ---------- Mint cards ---------- */
+      .mints { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+      @media (max-width: 720px) { .mints { grid-template-columns: 1fr; } }
+      .mint {
+        background: var(--bg-raise); border: 1px solid var(--line); border-radius: 14px;
+        box-shadow: var(--shadow); padding: 18px; display: flex; flex-direction: column;
+      }
+      .mint-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+      .mint h3 { margin: 0; font-size: 1.08rem; font-weight: 700; letter-spacing: -0.01em; }
+      .badge { font-size: 0.74rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+      .badge-live { background: var(--ok-soft); color: var(--ok); }
+      .badge-ended { background: var(--ended-soft); color: var(--ended); }
+      .badge-soldout { background: var(--soldout-soft); color: var(--soldout); }
+      .badge-unverified { background: var(--warn-soft); color: var(--warn); }
+      .mint .desc { color: var(--ink-2); font-size: 0.92rem; margin: 8px 0 12px; flex: 1; }
+      .addr-row { display: flex; align-items: center; gap: 8px; background: var(--bg-sunken); border-radius: 8px; padding: 7px 10px; }
+      .addr-row .addr { font-size: 0.82rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .copy-btn {
+        appearance: none; border: none; background: transparent; cursor: pointer; color: var(--ink-3);
+        font: inherit; font-size: 0.78rem; font-weight: 600; padding: 2px 6px; border-radius: 6px; min-height: 1.6rem;
+      }
+      .copy-btn:hover { color: var(--ink); }
+      .mint-links { display: flex; gap: 16px; margin-top: 12px; font-size: 0.88rem; font-weight: 600; }
+      .mint-foot {
+        margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line);
+        display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      }
+      .sig-count { font-size: 0.9rem; color: var(--ink-2); }
+      .sig-count strong { color: var(--ink); font-size: 1.05rem; }
+      .mint-foot .btn { margin-left: auto; }
+      .sig-note { width: 100%; font-size: 0.82rem; color: var(--ink-3); }
+      .sig-status { width: 100%; font-size: 0.86rem; min-height: 1.2em; }
+      .sig-status.pending { color: var(--warn); }
+      .sig-status.success { color: var(--ok); }
+      .sig-status.error { color: var(--bad); }
+
+      /* ---------- Road to 30 ---------- */
+      .progress-panel { margin-top: 16px; }
+      .prog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+      .prog-head h2 { margin: 0; font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+      .progress-bar {
+        height: 16px; border-radius: 999px; background: var(--bg-sunken);
+        border: 1px solid var(--line); overflow: hidden; margin-top: 6px;
+      }
+      .progress-fill {
+        height: 100%; width: 0%; background: var(--accent); border-radius: 999px;
+        transition: width .6s ease;
+      }
+      .prog-scale { display: flex; justify-content: space-between; font-size: 0.76rem; color: var(--ink-3); margin-top: 5px; }
+      .prog-meta { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 12px; font-size: 0.95rem; color: var(--ink-2); }
+      .prog-meta strong { color: var(--ink); font-size: 1.25rem; font-weight: 800; }
+      .prog-you { margin-top: 10px; font-size: 0.92rem; }
+
+      /* ---------- Invite ---------- */
+      .post-draft {
+        background: var(--bg-sunken); border: 1px solid var(--line); border-radius: 10px;
+        padding: 14px 16px; font-size: 0.92rem; white-space: pre-wrap; word-break: break-word; margin: 0;
+      }
+      .invite-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+      .playbook { margin: 0; padding-left: 20px; color: var(--ink-2); font-size: 0.94rem; }
+      .playbook li { margin-bottom: 10px; }
+      .playbook li strong { color: var(--ink); }
+
+      /* ---------- How it works ---------- */
+      .steps { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--bg-raise); box-shadow: var(--shadow); }
+      .step { display: flex; gap: 16px; padding: 18px 20px; }
+      .step + .step { border-top: 1px solid var(--line); }
+      .step .n {
+        flex: none; width: 34px; height: 34px; border-radius: 50%;
+        background: var(--accent-soft); color: var(--accent-strong);
+        display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.95rem;
+      }
+      .step h3 { margin: 2px 0 4px; font-size: 1rem; }
+      .step p { margin: 0; color: var(--ink-2); font-size: 0.93rem; }
+
+      footer {
+        margin-top: 48px; border-top: 1px solid var(--line); padding-top: 20px;
+        color: var(--ink-2); font-size: 0.88rem;
+      }
+      footer .frow { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin-bottom: 8px; }
+      footer p { margin: 6px 0; }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <div class="top-in">
+        <div class="brand">
+          <h1>AgentMint Radar<span class="radar-dot">.</span></h1>
+          <p>A free-mint radar for Binance Agent ID holders on BNB Chain. Check in daily, build your streak, and signal the mints worth watching.</p>
+          <span class="chain-tag">BNB Chain · Chain ID 56</span>
+        </div>
+        <div>
+          <button id="connectBtn" class="btn btn-accent" type="button">Connect wallet</button>
+          <div id="noWallet" class="notice notice-warn" style="max-width:320px;">
+            No wallet detected. Install <a href="https://metamask.io/download/" target="_blank" rel="noopener">MetaMask</a> (or another EVM wallet) and reload this page. You can still browse the radar and live signal counts without one.
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="wrap">
+      <!-- Stats strip -->
+      <div class="stats" aria-label="Radar statistics">
+        <div class="stat"><div class="num" id="statGlobal">—</div><div class="lbl">Total check-ins (global)</div></div>
+        <div class="stat"><div class="num" id="statStreak">—</div><div class="lbl">Your streak (days)</div></div>
+        <div class="stat"><div class="num" id="statTotal">—</div><div class="lbl">Your check-ins</div></div>
+        <div class="stat"><div class="num" id="statLast" style="font-size:1.15rem; padding-top:7px;">—</div><div class="lbl">Last check-in (UTC)</div></div>
+      </div>
+
+      <!-- Road to 30 -->
+      <section class="panel progress-panel" aria-labelledby="progH">
+        <div class="prog-head">
+          <h2 id="progH">Road to 30 Agent ID addresses</h2>
+          <span class="pill pill-mut" id="progState">Counting on-chain…</span>
+        </div>
+        <p class="sub">The Binance Agent ID Hackathon Innovation Award needs at least <strong>30 unique Agent ID addresses</strong> interacting with this contract — a check-in or a signal both count. This counter is read live from the contract's on-chain event logs.</p>
+        <div class="progress-bar" role="progressbar" aria-label="Unique Agent ID addresses" aria-valuemin="0" aria-valuemax="30" aria-valuenow="0" id="progBar"><div class="progress-fill" id="progFill"></div></div>
+        <div class="prog-scale"><span>0</span><span>10</span><span>20</span><span>30</span></div>
+        <div class="prog-meta">
+          <span><strong id="progCount">—</strong> / 30 unique addresses so far</span>
+          <span id="progRemaining"></span>
+        </div>
+        <div class="prog-you" id="progYou"></div>
+      </section>
+
+      <div class="grid-2">
+        <!-- Wallet / Agent ID panel -->
+        <section class="panel" aria-labelledby="walletH">
+          <h2 id="walletH">Wallet &amp; Agent ID</h2>
+          <p class="sub">Check-in and signals are gated on-chain: your wallet must hold a Binance Agent ID (SPACE ID ERC-721).</p>
+          <div class="kv"><span class="k">Status</span><span class="v" id="wStatus">Not connected</span></div>
+          <div class="kv"><span class="k">Address</span><span class="v mono" id="wAddr">—</span></div>
+          <div class="kv"><span class="k">Network</span><span class="v" id="wChain">—</span></div>
+          <div class="kv"><span class="k">Agent ID</span><span class="v" id="wAgent">—</span></div>
+          <div id="wrongChain" class="notice notice-bad">
+            You are not on BNB Chain mainnet. Check-in and signal transactions only work on chain 56.
+            <div style="margin-top:10px;"><button id="switchBtn" class="btn btn-sm btn-accent" type="button">Switch to BSC</button></div>
+          </div>
+          <div id="notHolder" class="notice notice-warn">
+            This wallet does not hold an Agent ID, so the check-in and signal buttons stay disabled. The radar contract rejects transactions from non-holders (<span class="mono">NotAgentIDHolder</span>).
+          </div>
+        </section>
+
+        <!-- Check-in panel -->
+        <section class="panel" aria-labelledby="checkinH">
+          <h2 id="checkinH">Daily check-in</h2>
+          <p class="sub">One check-in per UTC day. Consecutive days build your streak; missing a day resets it. The contract has no fee — you only pay network gas.</p>
+          <button id="checkInBtn" class="btn btn-accent btn-block" type="button" disabled>Connect wallet to check in</button>
+          <div id="checkInHint" class="hint">Connect a wallet that holds an Agent ID to check in.</div>
+          <div id="checkInStatus" class="tx-status" role="status"></div>
+        </section>
+      </div>
+
+      <!-- Radar -->
+      <div class="sec-head">
+        <h2>Free-mint radar</h2>
+        <span class="pill pill-mut" id="radarUpdated">Statuses last verified Nov 19, 2026</span>
+      </div>
+      <p class="sec-sub">Eight free mints for Agent ID holders on BNB Chain, tracked from the projects themselves. Signal a mint on-chain to register your interest — one signal per wallet per mint, recorded permanently by the radar contract.</p>
+      <div class="mints" id="mintGrid"></div>
+
+      <!-- Help reach 30 -->
+      <div class="sec-head"><h2>Help us reach 30</h2></div>
+      <p class="sec-sub">Thirty unique holders won't arrive on their own — every new Agent ID address that checks in or signals moves the counter above. Here is a launch post ready to publish, and where posting it works best.</p>
+      <div class="grid-2" style="margin-top:0;">
+        <section class="panel" aria-labelledby="postH">
+          <h2 id="postH">Launch post — ready to copy</h2>
+          <p class="sub">Written for X and Binance Square. Copy it as-is or make it your own.</p>
+          <p class="post-draft" id="postDraft">AgentMint Radar is LIVE — a free-mint radar for Agent ID holders on BNB Chain.
+
+Daily check-in, streaks, and one signal per holder per mint. No token. No fee. Just gas (~$0.01).
+
+Be one of the first 30 Agent ID addresses to check in and help unlock the Innovation Award track.
+
+Contract: https://bscscan.com/address/0x7F78B6ba71D3940AE70A29881c12d51ae67AA788
+
+#BinanceWalletHackathon #AgenticWallet</p>
+          <div class="invite-actions">
+            <button class="btn btn-accent btn-sm" type="button" id="copyPostBtn">Copy post</button>
+            <a class="btn btn-ghost btn-sm" id="postXBtn" href="https://twitter.com/intent/tweet" target="_blank" rel="noopener">Post on X</a>
+          </div>
+          <div class="sig-status" id="copyPostStatus" role="status"></div>
+        </section>
+        <section class="panel" aria-labelledby="playH">
+          <h2 id="playH">Where the 30 will come from</h2>
+          <p class="sub">The fastest routes to 29 more holders, in order:</p>
+          <ol class="playbook">
+            <li><strong>Binance Square</strong> — the hackathon's home feed. Post the launch text there first; builders and Agent ID holders browse it daily.</li>
+            <li><strong>Reply to the official hackathon announcement and other builders' posts</strong> — every project needs its own 30, so reciprocal check-ins are normal. Offer to check in on theirs.</li>
+            <li><strong>Agent ID and SPACE ID community channels</strong> — holders are already there; the ask is one gas-only transaction (~$0.01).</li>
+            <li><strong>Come back daily</strong> — your own streak keeps the radar active and visible while the count climbs.</li>
+          </ol>
+        </section>
+      </div>
+
+      <!-- How it works -->
+      <div class="sec-head"><h2>How it works</h2></div>
+      <div class="steps">
+        <div class="step">
+          <div class="n">1</div>
+          <div>
+            <h3>Connect a wallet holding an Agent ID</h3>
+            <p>AgentMint Radar reads your balance on the Agent ID contract (<span class="mono">0x60B9…8B022F</span>). Holders unlock check-in and signals; everyone can browse the radar and live counts.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n">2</div>
+          <div>
+            <h3>Check in once a day</h3>
+            <p>Each check-in is a transaction on the AgentMintRadar contract. It records your streak and total, and adds to the global counter above. Days are counted in UTC.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n">3</div>
+          <div>
+            <h3>Signal the mints you care about</h3>
+            <p>Signaling writes <span class="mono">keccak256(mint contract address)</span> to the radar contract. Signal counts are public and live, so projects and other agents can see which free mints the Agent ID community is actually watching.</p>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        <div class="frow">
+          <span>Radar contract:</span>
+          <span class="mono">0x7F78B6ba71D3940AE70A29881c12d51ae67AA788</span>
+          <a href="https://bscscan.com/address/0x7F78B6ba71D3940AE70A29881c12d51ae67AA788" target="_blank" rel="noopener">View on BscScan</a>
+          <button class="copy-btn" type="button" data-copy="0x7F78B6ba71D3940AE70A29881c12d51ae67AA788">Copy</button>
+        </div>
+        <p>The radar contract has no owner, no fee, and no token. Mint statuses above were last verified on <strong>Nov 19, 2026</strong> — always verify on the project site before minting, and never pay for a mint listed here as free without checking first.</p>
+        <p>Built for the Binance Agent ID Hackathon.</p>
+      </footer>
+    </div>
+
+    <script>
+      "use strict";
+
+      /* ================= Config ================= */
+      var RADAR_ADDRESS = "0x7F78B6ba71D3940AE70A29881c12d51ae67AA788";
+      var AGENT_ID_ADDRESS = "0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F";
+      var BSC_CHAIN_ID = 56;
+      var BSC_RPC = "https://bsc-dataseed.binance.org";
+      var BSCSCAN = "https://bscscan.com";
+      var DEPLOY_BLOCK = 134454318; // radar contract deployment block
+      var GOAL_ADDRESSES = 30;
+      var FALLBACK_RPCS = [
+        "https://bsc-dataseed.binance.org",
+        "https://bsc-dataseed.bnbchain.org",
+        "https://bsc-dataseed1.defibit.io",
+        "https://bsc-rpc.publicnode.com",
+        "https://bsc.publicnode.com"
+      ];
+
+      var RADAR_ABI = [
+        "function checkIn()",
+        "function signal(bytes32 mintId)",
+        "function getStats(address user) view returns (uint256 userStreak, uint256 userTotal, uint256 userLastDay)",
+        "function signalCount(bytes32 mintId) view returns (uint256)",
+        "function hasSignaled(bytes32 mintId, address user) view returns (bool)",
+        "function totalCheckInsGlobal() view returns (uint256)",
+        "error NotAgentIDHolder()",
+        "error AlreadyCheckedInToday()",
+        "error AlreadySignaled()",
+        "event CheckIn(address indexed user, uint256 streak, uint256 day)",
+        "event Signal(address indexed user, bytes32 indexed mintId, uint256 count)"
+      ];
+      var ERC721_ABI = ["function balanceOf(address owner) view returns (uint256)"];
+
+      var MINTS = [
+        {
+          name: "UNSOLVABLE",
+          address: "0x9e95Da84f1bcc8E5570DAAc99A37EB3f95270904",
+          site: "https://unsolvable.art",
+          status: "Live", badge: "badge-live",
+          desc: "Free gas-only mint, 1 per Agent ID. Mint windows open 6×/day with 80 slots each; 325 of 3,333 minted as of Nov 16, 2026."
+        },
+        {
+          name: "AGENTONE",
+          address: "0x9B0c237A123277fCf8768550Bbdd7767C73Cf5D3",
+          site: "https://aoneai.lol",
+          status: "Live", badge: "badge-live",
+          desc: "Free: 2 seats per Agent ID — each seat is 1 hero card plus 3,000 AONE locked to the card. Launched Nov 18, 2026."
+        },
+        {
+          name: "Agent Periodic Lab",
+          address: "0xfE5Ab5ce9b1D86a55d70E7D0573a14D559029C18",
+          site: "https://build-100.com/lab/",
+          status: "Live", badge: "badge-live",
+          desc: "First element-card mint is free; further mints are paid."
+        },
+        {
+          name: "BAGENT",
+          address: "0x9CA1A3eeA74829aA5011c56386b226DB472D0F4f",
+          site: "https://bagent.club",
+          status: "Live", badge: "badge-live",
+          desc: "Daily free mining claim, gas-only. Max 7 claims per Agent ID, 1 per day, 888 slots/day first-come-first-served."
+        },
+        {
+          name: "Nib",
+          address: "0xdA35ed11057Cd85Eb338a637f5509080F617a810",
+          site: "https://www.nibtap.site",
+          status: "Live", badge: "badge-live",
+          desc: "3 free mints per wallet, then $0.05 each."
+        },
+        {
+          name: "PassAgentX",
+          address: "0x08b1A979Dd997492EEcc010fe986eA2e2925e620",
+          site: "https://passagentx.xyz",
+          status: "Ended", badge: "badge-ended",
+          desc: "First pass was free per Agent ID. The mint window closed Nov 10, 2026."
+        },
+        {
+          name: "Pheromone Ant",
+          address: "0x4E8c7A14d47d68C0631bc02C8C5817Aa434957dd",
+          site: null,
+          status: "Sold out", badge: "badge-soldout",
+          desc: "Free mint — sold out."
+        },
+        {
+          name: "SnakeID",
+          address: "0xafc6bca0e191e396306343213b04ff9a8d717263",
+          site: "https://snakeid.xyz",
+          status: "Unverified", badge: "badge-unverified",
+          desc: "Free mint opened Oct 31, 2026. Current availability has not been verified — check the project site first."
+        }
+      ];
+
+      /* ================= State ================= */
+      var state = {
+        account: null,
+        chainId: null,
+        isHolder: false,
+        holderChecked: false,
+        stats: null,           // { streak, total, lastDay } as BigInt
+        signaled: {},          // mintId -> bool
+        uniqueUsers: null,     // Set of lowercase addresses from CheckIn/Signal events
+        provider: null,
+        signer: null,
+        radar: null,           // connected (signer) contract
+        busy: false
+      };
+
+      var readProvider = null;
+      var readRadar = null;
+
+      function $(id) { return document.getElementById(id); }
+      function truncate(addr) { return addr ? addr.slice(0, 6) + "…" + addr.slice(-4) : "—"; }
+      function todayUtcDay() { return Math.floor(Date.now() / 1000 / 86400); }
+      function dayToDate(dayBig) {
+        var day = Number(dayBig);
+        if (!day) return "Never";
+        var d = new Date(day * 86400 * 1000);
+        return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+      }
+      function mintIdFor(address) {
+        return ethers.solidityPackedKeccak256(["address"], [address]);
+      }
+
+      function friendlyError(e) {
+        if (!e) return "Unknown error.";
+        // Try to decode a custom error from the radar contract.
+        var data = e.data || (e.info && e.info.error && e.info.error.data) || null;
+        if (data && readRadar) {
+          try {
+            var parsed = readRadar.interface.parseError(data);
+            if (parsed) {
+              if (parsed.name === "NotAgentIDHolder") return "Rejected by the contract: this wallet does not hold an Agent ID.";
+              if (parsed.name === "AlreadyCheckedInToday") return "You have already checked in today (UTC). Come back tomorrow.";
+              if (parsed.name === "AlreadySignaled") return "You have already signaled this mint.";
+              return "Contract rejected the transaction (" + parsed.name + ").";
+            }
+          } catch (ignore) { /* fall through */ }
+        }
+        var msg = e.shortMessage || e.message || String(e);
+        if (e.code === 4001 || /user rejected|user denied/i.test(msg)) return "Transaction rejected in your wallet.";
+        if (/NotAgentIDHolder/.test(msg)) return "Rejected by the contract: this wallet does not hold an Agent ID.";
+        if (/AlreadyCheckedInToday/.test(msg)) return "You have already checked in today (UTC).";
+        if (/AlreadySignaled/.test(msg)) return "You have already signaled this mint.";
+        return msg.length > 220 ? msg.slice(0, 220) + "…" : msg;
+      }
+
+      /* ================= Read-only data (works without a wallet) ================= */
+      function initRead() {
+        try {
+          readProvider = new ethers.JsonRpcProvider(BSC_RPC);
+          readRadar = new ethers.Contract(RADAR_ADDRESS, RADAR_ABI, readProvider);
+        } catch (e) {
+          readProvider = null; readRadar = null;
+        }
+      }
+
+      function refreshGlobal() {
+        if (!readRadar) return;
+        readRadar.totalCheckInsGlobal().then(function (v) {
+          $("statGlobal").textContent = v.toString();
+        }).catch(function () { /* leave placeholder */ });
+      }
+
+      /* ---- Unique Agent ID addresses: union of users in CheckIn + Signal event logs ---- */
+      function updateProgressPanel() {
+        var countEl = $("progCount"), fill = $("progFill"), bar = $("progBar"),
+            stateEl = $("progState"), remEl = $("progRemaining"), youEl = $("progYou");
+        if (!state.uniqueUsers) {
+          countEl.textContent = "—";
+          fill.style.width = "0%";
+          bar.setAttribute("aria-valuenow", "0");
+          remEl.textContent = "";
+          youEl.textContent = "";
+          return;
+        }
+        var n = state.uniqueUsers.size;
+        countEl.textContent = String(n);
+        fill.style.width = Math.min(100, (n / GOAL_ADDRESSES) * 100) + "%";
+        bar.setAttribute("aria-valuenow", String(Math.min(n, GOAL_ADDRESSES)));
+        if (n >= GOAL_ADDRESSES) {
+          stateEl.textContent = "Goal reached ✓";
+          stateEl.className = "pill pill-ok";
+          remEl.textContent = "The 30-address requirement is met.";
+        } else {
+          stateEl.textContent = "Live count";
+          stateEl.className = "pill pill-mut";
+          remEl.textContent = (GOAL_ADDRESSES - n) + " more address" + (GOAL_ADDRESSES - n === 1 ? "" : "es") + " needed.";
+        }
+        if (state.account) {
+          if (state.uniqueUsers.has(state.account.toLowerCase())) {
+            youEl.innerHTML = '<span class="pill pill-ok">✓ You are one of the ' + n + '</span>';
+          } else {
+            youEl.textContent = "Your address is not counted yet — check in or signal any mint to join the count.";
+          }
+        } else {
+          youEl.textContent = "";
+        }
+      }
+
+      function fetchLogChunk(providers, idx, filter) {
+        if (idx >= providers.length) return Promise.reject(new Error("all RPCs failed"));
+        return providers[idx].getLogs(filter).catch(function () {
+          return fetchLogChunk(providers, idx + 1, filter);
+        });
+      }
+
+      // Try every RPC; if a range is too wide for all of them, split it and retry the halves.
+      function fetchLogsAdaptive(providers, filter) {
+        return fetchLogChunk(providers, 0, filter).catch(function () {
+          var span = filter.toBlock - filter.fromBlock;
+          if (span <= 400) throw new Error("log fetch failed");
+          var mid = filter.fromBlock + Math.floor(span / 2);
+          var a = Object.assign({}, filter, { toBlock: mid });
+          var b = Object.assign({}, filter, { fromBlock: mid + 1 });
+          return Promise.all([
+            fetchLogsAdaptive(providers, a),
+            fetchLogsAdaptive(providers, b)
+          ]).then(function (parts) { return parts[0].concat(parts[1]); });
+        });
+      }
+
+      function fetchHead(providers, idx) {
+        if (idx >= providers.length) return Promise.reject(new Error("no RPC for head"));
+        return providers[idx].getBlockNumber().catch(function () {
+          return fetchHead(providers, idx + 1);
+        });
+      }
+
+      function refreshUnique() {
+        var providers = FALLBACK_RPCS.map(function (url) {
+          try { return new ethers.JsonRpcProvider(url); } catch (e) { return null; }
+        }).filter(Boolean);
+        if (!providers.length || !readRadar) return;
+        var topics;
+        try {
+          topics = [[
+            readRadar.interface.getEvent("CheckIn").topicHash,
+            readRadar.interface.getEvent("Signal").topicHash
+          ]];
+        } catch (e) { return; }
+        fetchHead(providers, 0).then(function (head) {
+          var chunks = [];
+          for (var from = DEPLOY_BLOCK; from <= head; from += 5000) {
+            chunks.push({ fromBlock: from, toBlock: Math.min(from + 4999, head), address: RADAR_ADDRESS, topics: topics });
+          }
+          var users = {};
+          var queue = chunks.slice();
+          function nextBatch() {
+            if (!queue.length) return Promise.resolve();
+            var batch = queue.splice(0, 4);
+            return Promise.all(batch.map(function (f) {
+              return fetchLogsAdaptive(providers, f).then(function (logs) {
+                logs.forEach(function (log) {
+                  if (log.topics && log.topics[1]) {
+                    try { users[ethers.getAddress("0x" + log.topics[1].slice(26)).toLowerCase()] = true; } catch (e) { /* skip */ }
+                  }
+                });
+              });
+            })).then(nextBatch);
+          }
+          return nextBatch().then(function () {
+            state.uniqueUsers = new Set(Object.keys(users));
+            updateProgressPanel();
+          });
+        }).catch(function () {
+          var stateEl = $("progState");
+          if (stateEl && !state.uniqueUsers) {
+            stateEl.textContent = "Live count unavailable";
+            stateEl.className = "pill pill-warn";
+          }
+        });
+      }
+
+      function refreshSignalCounts() {
+        if (!readRadar) return;
+        MINTS.forEach(function (m, i) {
+          readRadar.signalCount(mintIdFor(m.address)).then(function (v) {
+            var el = $("sigCount-" + i);
+            if (el) el.textContent = v.toString();
+          }).catch(function () { /* leave placeholder */ });
+        });
+      }
+
+      /* ================= Mint cards ================= */
+      function buildMintCards() {
+        var grid = $("mintGrid");
+        MINTS.forEach(function (m, i) {
+          var card = document.createElement("article");
+          card.className = "mint";
+
+          var links = "";
+          if (m.site) links += '<a href="' + m.site + '" target="_blank" rel="noopener">Project site</a>';
+          links += '<a href="' + BSCSCAN + '/token/' + m.address + '" target="_blank" rel="noopener">BscScan token</a>';
+
+          card.innerHTML =
+            '<div class="mint-top"><h3></h3><span class="badge ' + m.badge + '">' + m.status + '</span></div>' +
+            '<p class="desc"></p>' +
+            '<div class="addr-row"><span class="addr mono" title="' + m.address + '">' + truncate(m.address) + '</span>' +
+            '<button class="copy-btn" type="button" data-copy="' + m.address + '">Copy</button></div>' +
+            '<div class="mint-links">' + links + '</div>' +
+            '<div class="mint-foot">' +
+              '<span class="sig-count"><strong id="sigCount-' + i + '">—</strong> signals</span>' +
+              '<button class="btn btn-ghost btn-sm" type="button" id="sigBtn-' + i + '" disabled>Signal</button>' +
+              '<div class="sig-note" id="sigNote-' + i + '">Connect a wallet to signal.</div>' +
+              '<div class="sig-status" id="sigStatus-' + i + '" role="status"></div>' +
+            '</div>';
+          card.querySelector("h3").textContent = m.name;
+          card.querySelector(".desc").textContent = m.desc;
+          grid.appendChild(card);
+
+          $("sigBtn-" + i).addEventListener("click", function () { doSignal(i); });
+        });
+      }
+
+      /* Copy buttons (event delegation covers cards + footer) */
+      document.addEventListener("click", function (ev) {
+        var btn = ev.target.closest ? ev.target.closest("[data-copy]") : null;
+        if (!btn) return;
+        var text = btn.getAttribute("data-copy");
+        var done = function () {
+          var old = btn.textContent;
+          btn.textContent = "Copied";
+          setTimeout(function () { btn.textContent = old; }, 1400);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(function () { fallbackCopy(text); done(); });
+        } else { fallbackCopy(text); done(); }
+      });
+      function fallbackCopy(text) {
+        var ta = document.createElement("textarea");
+        ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); } catch (e) { /* ignore */ }
+        document.body.removeChild(ta);
+      }
+
+      /* ================= Wallet ================= */
+      function hasInjected() { return typeof window.ethereum !== "undefined"; }
+
+      function updateWalletPanel() {
+        var wStatus = $("wStatus"), wAddr = $("wAddr"), wChain = $("wChain"), wAgent = $("wAgent");
+        $("wrongChain").classList.remove("show");
+        $("notHolder").classList.remove("show");
+
+        if (!state.account) {
+          wStatus.textContent = "Not connected";
+          wAddr.textContent = "—";
+          wChain.textContent = "—";
+          wAgent.textContent = "—";
+          $("connectBtn").textContent = "Connect wallet";
+          return;
+        }
+        wStatus.textContent = "Connected";
+        wAddr.textContent = truncate(state.account);
+        wAddr.title = state.account;
+        $("connectBtn").textContent = truncate(state.account);
+
+        if (state.chainId === BSC_CHAIN_ID) {
+          wChain.innerHTML = "BNB Chain (56)";
+        } else {
+          wChain.textContent = "Chain " + state.chainId + " — wrong network";
+          $("wrongChain").classList.add("show");
+        }
+
+        if (!state.holderChecked) {
+          wAgent.textContent = "Checking…";
+        } else if (state.isHolder) {
+          wAgent.innerHTML = '<span class="pill pill-ok">✓ Agent ID holder</span>';
+        } else {
+          wAgent.innerHTML = '<span class="pill pill-bad">Not a holder</span>';
+          if (state.chainId === BSC_CHAIN_ID) $("notHolder").classList.add("show");
+        }
+      }
+
+      function updateStatsPanel() {
+        if (!state.stats) {
+          $("statStreak").textContent = state.account ? "…" : "—";
+          $("statTotal").textContent = state.account ? "…" : "—";
+          $("statLast").textContent = "—";
+          return;
+        }
+        $("statStreak").textContent = state.stats.streak.toString();
+        $("statTotal").textContent = state.stats.total.toString();
+        $("statLast").textContent = dayToDate(state.stats.lastDay);
+      }
+
+      function updateCheckIn() {
+        var btn = $("checkInBtn"), hint = $("checkInHint");
+        btn.disabled = true;
+        if (state.busy) { btn.textContent = "Working…"; return; }
+        if (!state.account) {
+          btn.textContent = "Connect wallet to check in";
+          hint.textContent = "Connect a wallet that holds an Agent ID to check in.";
+          return;
+        }
+        if (state.chainId !== BSC_CHAIN_ID) {
+          btn.textContent = "Check in";
+          hint.textContent = "Switch to BNB Chain (chain 56) first — use the Switch to BSC button in the wallet panel.";
+          return;
+        }
+        if (!state.holderChecked) {
+          btn.textContent = "Check in";
+          hint.textContent = "Checking your Agent ID balance…";
+          return;
+        }
+        if (!state.isHolder) {
+          btn.textContent = "Check in";
+          hint.textContent = "Disabled: this wallet holds no Agent ID. Check-in requires an Agent ID — the contract reverts with NotAgentIDHolder otherwise.";
+          return;
+        }
+        if (state.stats && Number(state.stats.lastDay) === todayUtcDay()) {
+          btn.textContent = "Checked in today ✓";
+          hint.textContent = "You have already checked in today (UTC). Your next check-in opens at 00:00 UTC tomorrow.";
+          return;
+        }
+        btn.disabled = false;
+        btn.textContent = "Check in now";
+        hint.textContent = "Ready — one transaction, gas only. Streaks count consecutive UTC days.";
+      }
+
+      function updateSignalButtons() {
+        MINTS.forEach(function (m, i) {
+          var btn = $("sigBtn-" + i), note = $("sigNote-" + i);
+          if (!btn) return;
+          btn.disabled = true;
+          if (!state.account) { note.textContent = "Connect a wallet to signal."; btn.textContent = "Signal"; return; }
+          if (state.chainId !== BSC_CHAIN_ID) { note.textContent = "Switch to BNB Chain to signal."; btn.textContent = "Signal"; return; }
+          if (state.holderChecked && !state.isHolder) { note.textContent = "Signals require an Agent ID — this wallet holds none."; btn.textContent = "Signal"; return; }
+          if (!state.holderChecked) { note.textContent = "Checking your Agent ID…"; btn.textContent = "Signal"; return; }
+          var id = mintIdFor(m.address);
+          if (state.signaled[id]) {
+            note.textContent = "You already signaled this mint — one signal per wallet.";
+            btn.textContent = "Signaled ✓";
+            return;
+          }
+          note.textContent = "On-chain signal, gas only. One per wallet.";
+          btn.textContent = "Signal";
+          if (!state.busy) btn.disabled = false;
+        });
+      }
+
+      function refreshAll() {
+        updateWalletPanel();
+        updateStatsPanel();
+        updateCheckIn();
+        updateSignalButtons();
+        updateProgressPanel();
+      }
+
+      function loadOnChainState() {
+        if (!state.account) return;
+        var agentId = new ethers.Contract(AGENT_ID_ADDRESS, ERC721_ABI, readProvider);
+        state.holderChecked = false;
+        refreshAll();
+        agentId.balanceOf(state.account).then(function (bal) {
+          state.isHolder = bal > 0n;
+          state.holderChecked = true;
+          refreshAll();
+        }).catch(function () {
+          state.holderChecked = true;
+          state.isHolder = false;
+          refreshAll();
+        });
+
+        if (readRadar) {
+          readRadar.getStats(state.account).then(function (s) {
+            state.stats = { streak: s[0], total: s[1], lastDay: s[2] };
+            refreshAll();
+          }).catch(function () { /* keep placeholders */ });
+
+          MINTS.forEach(function (m) {
+            var id = mintIdFor(m.address);
+            readRadar.hasSignaled(id, state.account).then(function (v) {
+              state.signaled[id] = v;
+              updateSignalButtons();
+            }).catch(function () { /* ignore */ });
+          });
+        }
+      }
+
+      function connect() {
+        if (!hasInjected()) {
+          $("noWallet").classList.add("show");
+          return;
+        }
+        var btn = $("connectBtn");
+        btn.disabled = true;
+        btn.textContent = "Connecting…";
+        window.ethereum.request({ method: "eth_requestAccounts" }).then(function (accounts) {
+          return setupProvider(accounts);
+        }).catch(function (e) {
+          btn.disabled = false;
+          btn.textContent = "Connect wallet";
+          if (e && e.code === 4001) {
+            $("wStatus").textContent = "Connection rejected in wallet";
+          }
+        });
+      }
+
+      function setupProvider(accounts) {
+        state.provider = new ethers.BrowserProvider(window.ethereum);
+        return state.provider.getNetwork().then(function (net) {
+          state.chainId = Number(net.chainId);
+          if (accounts && accounts.length) {
+            state.account = accounts[0];
+          }
+          return state.provider.getSigner();
+        }).then(function (signer) {
+          state.signer = signer;
+          if (!state.account) return signer.getAddress().then(function (a) { state.account = a; });
+        }).then(function () {
+          state.radar = new ethers.Contract(RADAR_ADDRESS, RADAR_ABI, state.signer);
+          $("connectBtn").disabled = false;
+          refreshAll();
+          loadOnChainState();
+        }).catch(function () {
+          $("connectBtn").disabled = false;
+          refreshAll();
+        });
+      }
+
+      function switchToBsc() {
+        if (!hasInjected()) return;
+        window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: "0x38" }]
+        }).catch(function (e) {
+          if (e && e.code === 4902) {
+            return window.ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [{
+                chainId: "0x38",
+                chainName: "BNB Smart Chain",
+                nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
+                rpcUrls: [BSC_RPC],
+                blockExplorerUrls: [BSCSCAN]
+              }]
+            });
+          }
+          /* chainChanged handler refreshes state */
+        }).catch(function () { /* user rejected or failed; panel still shows warning */ });
+      }
+
+      /* ================= Transactions ================= */
+      function setTxStatus(el, kind, html) {
+        el.className = "tx-status " + kind;
+        el.innerHTML = html;
+      }
+
+      function doCheckIn() {
+        if (!state.radar || state.busy) return;
+        var status = $("checkInStatus");
+        state.busy = true;
+        refreshAll();
+        setTxStatus(status, "pending", "Sending check-in — confirm it in your wallet…");
+        state.radar.checkIn().then(function (tx) {
+          setTxStatus(status, "pending", 'Transaction sent, waiting for confirmation… <a href="' + BSCSCAN + "/tx/" + tx.hash + '" target="_blank" rel="noopener">View tx</a>');
+          return tx.wait();
+        }).then(function (receipt) {
+          state.busy = false;
+          setTxStatus(status, "success", 'Checked in ✓ — block ' + receipt.blockNumber + '. <a href="' + BSCSCAN + "/tx/" + receipt.hash + '" target="_blank" rel="noopener">View tx</a>');
+          refreshGlobal();
+          refreshUnique();
+          if (readRadar && state.account) {
+            readRadar.getStats(state.account).then(function (s) {
+              state.stats = { streak: s[0], total: s[1], lastDay: s[2] };
+              refreshAll();
+            }).catch(function () { refreshAll(); });
+          } else {
+            refreshAll();
+          }
+        }).catch(function (e) {
+          state.busy = false;
+          setTxStatus(status, "error", "Check-in failed: " + friendlyError(e));
+          loadOnChainState();
+          refreshAll();
+        });
+      }
+
+      function doSignal(i) {
+        if (!state.radar || state.busy) return;
+        var m = MINTS[i];
+        var id = mintIdFor(m.address);
+        var status = $("sigStatus-" + i);
+        status.className = "sig-status pending";
+        status.textContent = "Sending signal — confirm it in your wallet…";
+        state.busy = true;
+        updateSignalButtons();
+        state.radar.signal(id).then(function (tx) {
+          status.textContent = "Signal sent, waiting for confirmation…";
+          return tx.wait();
+        }).then(function () {
+          state.busy = false;
+          state.signaled[id] = true;
+          status.className = "sig-status success";
+          status.textContent = "Signaled ✓ — recorded on-chain.";
+          refreshSignalCounts();
+          refreshUnique();
+          updateSignalButtons();
+        }).catch(function (e) {
+          state.busy = false;
+          status.className = "sig-status error";
+          status.textContent = "Signal failed: " + friendlyError(e);
+          updateSignalButtons();
+        });
+      }
+
+      /* ================= Boot ================= */
+      function init() {
+        buildMintCards();
+        initRead();
+        refreshGlobal();
+        refreshSignalCounts();
+        refreshUnique();
+
+        // Launch-post helpers: X compose link + copy button (copies the post text itself).
+        var draft = $("postDraft").textContent;
+        $("postXBtn").href = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(draft);
+        $("copyPostBtn").addEventListener("click", function () {
+          var st = $("copyPostStatus");
+          var done = function () {
+            st.className = "sig-status success";
+            st.textContent = "Post copied — paste it into X or Binance Square.";
+          };
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(draft).then(done).catch(function () { fallbackCopy(draft); done(); });
+          } else { fallbackCopy(draft); done(); }
+        });
+
+        if (!hasInjected()) {
+          $("noWallet").classList.add("show");
+          $("connectBtn").addEventListener("click", function () {
+            $("noWallet").classList.add("show");
+            $("noWallet").scrollIntoView({ behavior: "smooth", block: "center" });
+          });
+        } else {
+          $("connectBtn").addEventListener("click", connect);
+          // Silent reconnect if the wallet already authorised this site.
+          window.ethereum.request({ method: "eth_accounts" }).then(function (accounts) {
+            if (accounts && accounts.length) setupProvider(accounts);
+          }).catch(function () { /* not authorised yet */ });
+
+          window.ethereum.on("accountsChanged", function (accounts) {
+            state.signaled = {};
+            state.stats = null;
+            state.holderChecked = false;
+            if (accounts && accounts.length) setupProvider(accounts);
+            else { state.account = null; state.signer = null; state.radar = null; refreshAll(); }
+          });
+          window.ethereum.on("chainChanged", function () {
+            window.location.reload();
+          });
+        }
+
+        $("switchBtn").addEventListener("click", switchToBsc);
+        $("checkInBtn").addEventListener("click", doCheckIn);
+        refreshAll();
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    </script>
+  </body>
+</html>
