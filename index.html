@@ -510,6 +510,7 @@ Contract: https://bscscan.com/address/0x7F78B6ba71D3940AE70A29881c12d51ae67AA788
         stats: null,           // { streak, total, lastDay } as BigInt
         signaled: {},          // mintId -> bool
         uniqueUsers: null,     // Set of lowercase addresses from CheckIn/Signal events
+        uniqueLowerBound: false, // true while the scan is known-incomplete: count is a floor, not exact
         provider: null,
         signer: null,
         radar: null,           // connected (signer) contract
@@ -585,13 +586,18 @@ Contract: https://bscscan.com/address/0x7F78B6ba71D3940AE70A29881c12d51ae67AA788
           return;
         }
         var n = state.uniqueUsers.size;
-        countEl.textContent = String(n);
+        var lowerBound = !!state.uniqueLowerBound;
+        countEl.textContent = (lowerBound ? "≥ " : "") + String(n);
         fill.style.width = Math.min(100, (n / GOAL_ADDRESSES) * 100) + "%";
         bar.setAttribute("aria-valuenow", String(Math.min(n, GOAL_ADDRESSES)));
         if (n >= GOAL_ADDRESSES) {
           stateEl.textContent = "Goal reached ✓";
           stateEl.className = "pill pill-ok";
           remEl.textContent = "The 30-address requirement is met.";
+        } else if (lowerBound) {
+          stateEl.textContent = "Partial count — still verifying";
+          stateEl.className = "pill pill-warn";
+          remEl.textContent = "At least " + n + " found so far — the verified count may be higher.";
         } else {
           stateEl.textContent = "Live count";
           stateEl.className = "pill pill-mut";
@@ -608,9 +614,56 @@ Contract: https://bscscan.com/address/0x7F78B6ba71D3940AE70A29881c12d51ae67AA788
         }
       }
 
+      /* ---- Log fetching with empty-result verification ----
+         Some RPCs (notably the publicnode family) silently return an empty log
+         array for block ranges that actually contain events. An empty chunk is
+         therefore never trusted on its own: before it is accepted, it is
+         re-checked against an independent provider from a different RPC family,
+         and a non-empty answer from that provider wins. */
+      function rpcFamily(url) {
+        return url.indexOf("publicnode") !== -1 ? "publicnode" : url;
+      }
+
+      function makeProviders() {
+        return FALLBACK_RPCS.map(function (url) {
+          try { return { url: url, family: rpcFamily(url), rpc: new ethers.JsonRpcProvider(url) }; }
+          catch (e) { return null; }
+        }).filter(Boolean);
+      }
+
+      // Ask providers from other families whether this range is really empty.
+      // One representative per independent family is consulted: any non-empty
+      // answer wins; the range counts as empty only when every reachable
+      // independent family agrees it is empty. Resolves null when no
+      // independent provider could be reached — in that case the caller keeps
+      // the original empty answer, and the totalCheckInsGlobal cross-check in
+      // refreshUnique is the backstop that catches a wrongly-empty chunk.
+      function verifyEmptyChunk(providers, filter, original) {
+        var seen = {}, candidates = [];
+        providers.forEach(function (p) {
+          if (p.family !== original.family && !seen[p.family]) { seen[p.family] = true; candidates.push(p); }
+        });
+        var answered = false;
+        function go(i) {
+          if (i >= candidates.length) return Promise.resolve(answered ? [] : null);
+          return candidates[i].rpc.getLogs(filter).then(function (logs) {
+            if (logs.length > 0) return logs;
+            answered = true;
+            return go(i + 1);
+          }).catch(function () { return go(i + 1); });
+        }
+        return go(0);
+      }
+
       function fetchLogChunk(providers, idx, filter) {
         if (idx >= providers.length) return Promise.reject(new Error("all RPCs failed"));
-        return providers[idx].getLogs(filter).catch(function () {
+        var p = providers[idx];
+        return p.rpc.getLogs(filter).then(function (logs) {
+          if (logs.length > 0) return logs;
+          return verifyEmptyChunk(providers, filter, p).then(function (verified) {
+            return (verified && verified.length > 0) ? verified : logs;
+          });
+        }).catch(function () {
           return fetchLogChunk(providers, idx + 1, filter);
         });
       }
@@ -632,48 +685,78 @@ Contract: https://bscscan.com/address/0x7F78B6ba71D3940AE70A29881c12d51ae67AA788
 
       function fetchHead(providers, idx) {
         if (idx >= providers.length) return Promise.reject(new Error("no RPC for head"));
-        return providers[idx].getBlockNumber().catch(function () {
+        return providers[idx].rpc.getBlockNumber().catch(function () {
           return fetchHead(providers, idx + 1);
         });
       }
 
       function refreshUnique() {
-        var providers = FALLBACK_RPCS.map(function (url) {
-          try { return new ethers.JsonRpcProvider(url); } catch (e) { return null; }
-        }).filter(Boolean);
+        var providers = makeProviders();
         if (!providers.length || !readRadar) return;
-        var topics;
+        var checkInTopic, topics;
         try {
+          checkInTopic = readRadar.interface.getEvent("CheckIn").topicHash;
           topics = [[
-            readRadar.interface.getEvent("CheckIn").topicHash,
+            checkInTopic,
             readRadar.interface.getEvent("Signal").topicHash
           ]];
         } catch (e) { return; }
-        fetchHead(providers, 0).then(function (head) {
-          var chunks = [];
-          for (var from = DEPLOY_BLOCK; from <= head; from += 5000) {
-            chunks.push({ fromBlock: from, toBlock: Math.min(from + 4999, head), address: RADAR_ADDRESS, topics: topics });
-          }
-          var users = {};
-          var queue = chunks.slice();
-          function nextBatch() {
-            if (!queue.length) return Promise.resolve();
-            var batch = queue.splice(0, 4);
-            return Promise.all(batch.map(function (f) {
-              return fetchLogsAdaptive(providers, f).then(function (logs) {
-                logs.forEach(function (log) {
-                  if (log.topics && log.topics[1]) {
-                    try { users[ethers.getAddress("0x" + log.topics[1].slice(26)).toLowerCase()] = true; } catch (e) { /* skip */ }
-                  }
+
+        // One full scan of the CheckIn + Signal logs since deployment.
+        // Resolves { users: Set, checkIns: number of CheckIn events found }.
+        function scanOnce() {
+          return fetchHead(providers, 0).then(function (head) {
+            var chunks = [];
+            for (var from = DEPLOY_BLOCK; from <= head; from += 5000) {
+              chunks.push({ fromBlock: from, toBlock: Math.min(from + 4999, head), address: RADAR_ADDRESS, topics: topics });
+            }
+            var users = {};
+            var checkIns = 0;
+            var queue = chunks.slice();
+            function nextBatch() {
+              if (!queue.length) return Promise.resolve();
+              var batch = queue.splice(0, 4);
+              return Promise.all(batch.map(function (f) {
+                return fetchLogsAdaptive(providers, f).then(function (logs) {
+                  logs.forEach(function (log) {
+                    if (log.topics && log.topics[0] === checkInTopic) checkIns++;
+                    if (log.topics && log.topics[1]) {
+                      try { users[ethers.getAddress("0x" + log.topics[1].slice(26)).toLowerCase()] = true; } catch (e) { /* skip */ }
+                    }
+                  });
                 });
-              });
-            })).then(nextBatch);
-          }
-          return nextBatch().then(function () {
-            state.uniqueUsers = new Set(Object.keys(users));
+              })).then(nextBatch);
+            }
+            return nextBatch().then(function () {
+              return { users: new Set(Object.keys(users)), checkIns: checkIns };
+            });
+          });
+        }
+
+        function readGlobalTotal() {
+          return readRadar.totalCheckInsGlobal().then(function (v) { return Number(v); })
+            .catch(function () { return null; });
+        }
+
+        var attempts = 0;
+        function run() {
+          attempts++;
+          return Promise.all([scanOnce(), readGlobalTotal()]).then(function (res) {
+            var scan = res[0], total = res[1];
+            // Cross-check: every check-in emits exactly one CheckIn event, so a
+            // complete scan must find totalCheckInsGlobal CheckIn events. Fewer
+            // means an RPC silently dropped logs somewhere — rescan instead of
+            // trusting the short count.
+            var complete = (total === null) || (scan.checkIns >= total);
+            if (!complete && attempts < 3) return run();
+            state.uniqueUsers = scan.users;
+            // Still short after retries: show the count as a lower bound
+            // ("at least N"), never as an exact figure that is known wrong.
+            state.uniqueLowerBound = !complete;
             updateProgressPanel();
           });
-        }).catch(function () {
+        }
+        run().catch(function () {
           var stateEl = $("progState");
           if (stateEl && !state.uniqueUsers) {
             stateEl.textContent = "Live count unavailable";
